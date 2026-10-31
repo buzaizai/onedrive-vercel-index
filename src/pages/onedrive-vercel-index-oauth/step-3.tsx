@@ -10,7 +10,7 @@ import siteConfig from '../../../config/site.config'
 import Navbar from '../../components/Navbar'
 import Footer from '../../components/Footer'
 
-import { getAuthPersonInfo, requestTokenWithAuthCode, sendTokenToServer } from '../../utils/oAuthHandler'
+import { getAuthPersonInfo, sendTokenToServer } from '../../utils/oAuthHandler'
 import { LoadingIcon } from '../../components/Loading'
 
 export default function OAuthStep3({ accessToken, expiryTime, refreshToken, error, description, errorUri }) {
@@ -237,6 +237,7 @@ export async function getServerSideProps({ query, locale }) {
     }
   }
 
+  const { requestTokenWithAuthCode } = await import('../../utils/serverOAuth')
   const response = await requestTokenWithAuthCode(authCode)
 
   // If error response, return invalid

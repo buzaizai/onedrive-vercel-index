@@ -4,6 +4,7 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 import axios from 'axios'
 
 import apiConfig from '../../../config/api.config'
+import serverApiConfig from '../../../config/server-api.config'
 import siteConfig from '../../../config/site.config'
 import { revealObfuscatedToken } from '../../utils/oAuthHandler'
 import { compareHashedToken } from '../../utils/protectedRouteHandler'
@@ -11,7 +12,6 @@ import { getOdAuthTokens, storeOdAuthTokens } from '../../utils/odAuthTokenStore
 import { runCorsMiddleware } from './raw'
 
 const basePath = pathPosix.resolve('/', siteConfig.baseDirectory)
-const clientSecret = revealObfuscatedToken(apiConfig.obfuscatedClientSecret)
 
 /**
  * Encode the path of the file relative to the base directory
@@ -49,6 +49,7 @@ export async function getAccessToken(): Promise<string> {
   }
 
   // Fetch new access token with in storage refresh token
+  const clientSecret = serverApiConfig.clientSecret
   const body = new URLSearchParams()
   body.append('client_id', apiConfig.clientId)
   body.append('redirect_uri', apiConfig.redirectUri)

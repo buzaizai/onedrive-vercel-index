@@ -1,4 +1,3 @@
-import axios from 'axios'
 import CryptoJS from 'crypto-js'
 
 import apiConfig from '../../config/api.config'
@@ -44,43 +43,6 @@ export function extractAuthCodeFromRedirected(url: string): string {
   // New URL search parameter
   const params = new URLSearchParams(url.split('?')[1])
   return params.get('code') ?? ''
-}
-
-// After a successful authorisation, the code returned from the Microsoft OAuth 2.0 authorization URL
-// will be used to request an access token. This function requests the access token with the authorisation code
-// and returns the access token and refresh token on success.
-export async function requestTokenWithAuthCode(
-  code: string
-): Promise<
-  | { expiryTime: string; accessToken: string; refreshToken: string }
-  | { error: string; errorDescription: string; errorUri: string }
-> {
-  const { clientId, redirectUri, authApi } = apiConfig
-  const clientSecret = revealObfuscatedToken(apiConfig.obfuscatedClientSecret)
-
-  // Construct URL parameters for OAuth2
-  const params = new URLSearchParams()
-  params.append('client_id', clientId)
-  params.append('redirect_uri', redirectUri)
-  params.append('client_secret', clientSecret)
-  params.append('code', code)
-  params.append('grant_type', 'authorization_code')
-
-  // Request access token
-  return axios
-    .post(authApi, params, {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-    })
-    .then(resp => {
-      const { expires_in, access_token, refresh_token } = resp.data
-      return { expiryTime: expires_in, accessToken: access_token, refreshToken: refresh_token }
-    })
-    .catch(err => {
-      const { error, error_description, error_uri } = err.response.data
-      return { error, errorDescription: error_description, errorUri: error_uri }
-    })
 }
 
 // Verify the identity of the user with the access token and compare it with the userPrincipalName
