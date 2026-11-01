@@ -1,7 +1,7 @@
 import { randomBytes, scryptSync } from 'node:crypto'
-import { readFile } from 'node:fs/promises'
-
-const password = (await readFile(0, 'utf8')).trim()
+const chunks = []
+for await (const chunk of process.stdin) chunks.push(chunk)
+const password = Buffer.concat(chunks).toString('utf8').trim()
 if (!password) throw new Error('Pass the password on stdin.')
 
 const n = 16_384
