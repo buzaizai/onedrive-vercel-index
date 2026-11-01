@@ -1,20 +1,4 @@
-import CryptoJS from 'crypto-js'
-
 import apiConfig from '../../config/api.config'
-
-// Just a disguise to obfuscate required tokens (including but not limited to client secret,
-// access tokens, and refresh tokens), used along with the following two functions
-const AES_SECRET_KEY = 'onedrive-vercel-index'
-export function obfuscateToken(token: string): string {
-  // Encrypt token with AES
-  const encrypted = CryptoJS.AES.encrypt(token, AES_SECRET_KEY)
-  return encrypted.toString()
-}
-export function revealObfuscatedToken(obfuscated: string): string {
-  // Decrypt SHA256 obfuscated token
-  const decrypted = CryptoJS.AES.decrypt(obfuscated, AES_SECRET_KEY)
-  return decrypted.toString(CryptoJS.enc.Utf8)
-}
 
 // Generate the Microsoft OAuth 2.0 authorization URL, used for requesting the authorisation code
 export function generateAuthorisationUrl(): string {
@@ -45,29 +29,4 @@ export function extractAuthCodeFromRedirected(url: string): string {
   return params.get('code') ?? ''
 }
 
-// Verify the identity of the user with the access token and compare it with the userPrincipalName
-// in the Microsoft Graph API. If the userPrincipalName matches, proceed with token storing.
-export async function getAuthPersonInfo(accessToken: string) {
-  const profileApi = apiConfig.driveApi.replace('/drive', '')
-  return axios.get(profileApi, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-  })
-}
-
-export async function sendTokenToServer(accessToken: string, refreshToken: string, expiryTime: string) {
-  return await axios.post(
-    '/api',
-    {
-      obfuscatedAccessToken: obfuscateToken(accessToken),
-      accessTokenExpiry: parseInt(expiryTime),
-      obfuscatedRefreshToken: obfuscateToken(refreshToken),
-    },
-    {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    }
-  )
-}
+\n

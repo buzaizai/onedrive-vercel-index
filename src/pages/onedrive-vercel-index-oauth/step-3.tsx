@@ -2,6 +2,7 @@ import Head from 'next/head'
 import Image from 'next/image'
 import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
+import axios from 'axios'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { useTranslation, Trans } from 'next-i18next'
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations'
@@ -10,12 +11,11 @@ import siteConfig from '../../../config/site.config'
 import Navbar from '../../components/Navbar'
 import Footer from '../../components/Footer'
 
-import { getAuthPersonInfo, sendTokenToServer } from '../../utils/oAuthHandler'
 import { LoadingIcon } from '../../components/Loading'
 
-export default function OAuthStep3({ accessToken, expiryTime, refreshToken, error, description, errorUri }) {
+export default function OAuthStep3({ authCode, error, description, errorUri }) {
   const router = useRouter()
-  const [expiryTimeLeft, setExpiryTimeLeft] = useState(expiryTime)
+  const [expiryTimeLeft, setExpiryTimeLeft] = useState<number | null>(null)
 
   const { t } = useTranslation()
 
@@ -36,7 +36,7 @@ export default function OAuthStep3({ accessToken, expiryTime, refreshToken, erro
   )
   const [buttonError, setButtonError] = useState(false)
 
-  const sendAuthTokensToServer = async () => {
+  const storeAuthorizationCode = async () => {
     setButtonError(false)
     setButtonContent(
       <div>
@@ -44,30 +44,12 @@ export default function OAuthStep3({ accessToken, expiryTime, refreshToken, erro
       </div>
     )
 
-    // verify identity of the authenticated user with the Microsoft Graph API
-    const { data, status } = await getAuthPersonInfo(accessToken)
-    if (status !== 200) {
-      setButtonError(true)
-      setButtonContent(
-        <div>
-          <span>{t('Error validating identify, restart')}</span> <FontAwesomeIcon icon="exclamation-circle" />
-        </div>
-      )
-      return
-    }
-    if (data.userPrincipalName !== siteConfig.userPrincipalName) {
-      setButtonError(true)
-      setButtonContent(
-        <div>
-          <span>{t('Do not pretend to be the site owner')}</span> <FontAwesomeIcon icon="exclamation-circle" />
-        </div>
-      )
-      return
-    }
-
-    await sendTokenToServer(accessToken, refreshToken, expiryTime)
-      .then(() => {
+    await axios
+      .post('/api/oauth', { code: authCode }, { headers: { 'Content-Type': 'application/json' } })
+      .then(response => {
+        const expiresIn = Number(response.data?.expiresIn)
         setButtonError(false)
+        setExpiryTimeLeft(Number.isFinite(expiresIn) && expiresIn > 0 ? expiresIn : null)
         setButtonContent(
           <div>
             <span>{t('Stored! Going home...')}</span> <FontAwesomeIcon icon="check" />
@@ -160,26 +142,10 @@ export default function OAuthStep3({ accessToken, expiryTime, refreshToken, erro
             ) : (
               <div>
                 <p className="py-1 font-medium">{t('Success! The API returned what we needed.')}</p>
-                <ol className="py-1">
-                  {accessToken && (
-                    <li>
-                      <FontAwesomeIcon icon={['far', 'check-circle']} className="text-green-500" />{' '}
-                      <span>
-                        {t('Acquired access_token: ')}
-                        <code className="font-mono text-sm opacity-80">{`${accessToken.substring(0, 60)}...`}</code>
-                      </span>
-                    </li>
-                  )}
-                  {refreshToken && (
-                    <li>
-                      <FontAwesomeIcon icon={['far', 'check-circle']} className="text-green-500" />{' '}
-                      <span>
-                        {t('Acquired refresh_token: ')}
-                        <code className="font-mono text-sm opacity-80">{`${refreshToken.substring(0, 60)}...`}</code>
-                      </span>
-                    </li>
-                  )}
-                </ol>
+                <p className="py-1">
+                  <FontAwesomeIcon icon={['far', 'check-circle']} className="text-green-500" />{' '}
+                  {t('The authorization code is ready. Tokens will stay on the server.')}
+                </p>
 
                 <p className="py-1 text-sm font-medium text-teal-500">
                   <FontAwesomeIcon icon="exclamation-circle" className="mr-1" />{' '}
@@ -191,8 +157,8 @@ export default function OAuthStep3({ accessToken, expiryTime, refreshToken, erro
                   {t(
                     'Final step, click the button below to store these tokens persistently before they expire after {{minutes}} minutes {{seconds}} seconds. ',
                     {
-                      minutes: Math.floor(expiryTimeLeft / 60),
-                      seconds: expiryTimeLeft - Math.floor(expiryTimeLeft / 60) * 60,
+                      minutes: expiryTimeLeft ? Math.floor(expiryTimeLeft / 60) : 0,
+                      seconds: expiryTimeLeft ? expiryTimeLeft - Math.floor(expiryTimeLeft / 60) * 60 : 0,
                     }
                   ) +
                     t(
@@ -207,7 +173,7 @@ export default function OAuthStep3({ accessToken, expiryTime, refreshToken, erro
                         ? 'from-red-500 to-orange-400 focus:ring-red-200 dark:focus:ring-red-800'
                         : 'from-green-500 to-teal-300 focus:ring-green-200 dark:focus:ring-green-800'
                     }`}
-                    onClick={sendAuthTokensToServer}
+                    onClick={storeAuthorizationCode}
                   >
                     {buttonContent}
                   </button>
@@ -224,7 +190,7 @@ export default function OAuthStep3({ accessToken, expiryTime, refreshToken, erro
 }
 
 export async function getServerSideProps({ query, locale }) {
-  const { authCode } = query
+  const authCode = typeof query.authCode === 'string' ? query.authCode : ''
 
   // Return if no auth code is present
   if (!authCode) {
@@ -237,29 +203,10 @@ export async function getServerSideProps({ query, locale }) {
     }
   }
 
-  const { requestTokenWithAuthCode } = await import('../../utils/serverOAuth')
-  const response = await requestTokenWithAuthCode(authCode)
-
-  // If error response, return invalid
-  if ('error' in response) {
-    return {
-      props: {
-        error: response.error,
-        description: response.errorDescription,
-        errorUri: response.errorUri,
-        ...(await serverSideTranslations(locale, ['common'])),
-      },
-    }
-  }
-
-  const { expiryTime, accessToken, refreshToken } = response
-
   return {
     props: {
       error: null,
-      expiryTime,
-      accessToken,
-      refreshToken,
+      authCode,
       ...(await serverSideTranslations(locale, ['common'])),
     },
   }

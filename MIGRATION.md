@@ -13,4 +13,6 @@ This branch removes the old Microsoft app registration from source control. The 
 
 Register `http://localhost` as a **Web** redirect URI in the new Entra app. The current OAuth flow opens Microsoft login, then accepts the complete URL returned to the localhost page.
 
+The OAuth code exchange and OneDrive-owner check now run in `/api/oauth`. The browser submits only the one-time authorization code; access and refresh tokens are written directly to Redis and are never rendered into HTML or sent back to client JavaScript. `MICROSOFT_CLIENT_SECRET` must therefore remain a Vercel server environment variable and must not be committed to GitHub.
+
 Before switching Vercel's Git connection, preserve the existing Redis values and token store. After the first deployment, open `/onedrive-vercel-index-oauth/step-1`, verify the new client ID and redirect URI, complete OAuth, and confirm the root listing and a protected route.
