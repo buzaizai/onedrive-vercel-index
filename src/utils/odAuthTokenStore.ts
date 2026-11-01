@@ -10,6 +10,10 @@ const rawRedisUrl = process.env.REDIS_URL?.trim()
 const redisUrl = rawRedisUrl?.startsWith('redis://') && rawRedisUrl.includes('.upstash.io')
   ? `rediss://${rawRedisUrl.slice('redis://'.length)}`
   : rawRedisUrl
+const redisHost = process.env.REDIS_HOST?.trim()
+const redisPort = Number.parseInt(process.env.REDIS_PORT || '6379', 10)
+const redisTls = process.env.REDIS_TLS?.toLowerCase() !== 'false'
+const hasDirectRedis = Boolean(redisUrl || redisHost)
 let legacyRedis: Redis | undefined
 let legacyConnectPromise: Promise<void> | undefined
 
@@ -42,14 +46,26 @@ async function runRestCommand(command: RedisCommand): Promise<unknown> {
 }
 
 function getLegacyRedis() {
-  if (!redisUrl) throw new Error('No Redis storage configuration is present.')
+  if (!hasDirectRedis) throw new Error('No Redis storage configuration is present.')
   if (!legacyRedis) {
-    legacyRedis = new Redis(redisUrl, {
+    const options = {
       lazyConnect: true,
       connectTimeout: 5000,
       maxRetriesPerRequest: 1,
       enableOfflineQueue: false,
-    })
+    }
+    if (redisUrl) {
+      legacyRedis = new Redis(redisUrl, options)
+    } else {
+      legacyRedis = new Redis({
+        host: redisHost as string,
+        port: Number.isFinite(redisPort) ? redisPort : 6379,
+        username: process.env.REDIS_USERNAME?.trim() || undefined,
+        password: process.env.REDIS_PASSWORD || undefined,
+        tls: redisTls ? { servername: redisHost as string } : undefined,
+        ...options,
+      })
+    }
     legacyRedis.on('error', error => {
       console.error('Legacy Redis connection failed:', error instanceof Error ? error.message : 'unknown error')
     })
@@ -57,16 +73,7 @@ function getLegacyRedis() {
   return legacyRedis
 }
 
-async function runCommand(command: RedisCommand): Promise<unknown> {
-  if (restUrl && restToken) {
-    try {
-      return await runRestCommand(command)
-    } catch (restError) {
-      if (!redisUrl) throw restError
-      console.error('Upstash REST failed; trying direct Redis fallback.')
-    }
-  }
-
+async function runLegacyCommand(command: RedisCommand): Promise<unknown> {
   const redis = getLegacyRedis()
   if (!legacyConnectPromise) {
     legacyConnectPromise = redis.connect().catch(error => {
@@ -76,6 +83,19 @@ async function runCommand(command: RedisCommand): Promise<unknown> {
   }
   await legacyConnectPromise
   return redis.call(...(command as [string, ...Array<string | number>]))
+}
+
+async function runCommand(command: RedisCommand): Promise<unknown> {
+  if (hasDirectRedis) {
+    try {
+      return await runLegacyCommand(command)
+    } catch (legacyError) {
+      if (!restUrl || !restToken) throw legacyError
+      console.error('Direct Redis failed; trying Upstash REST fallback.')
+    }
+  }
+  if (restUrl && restToken) return runRestCommand(command)
+  throw new Error('No usable Redis storage configuration is present.')
 }
 
 export async function getOdAuthTokens(): Promise<{ accessToken: unknown; refreshToken: unknown }> {

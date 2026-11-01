@@ -13,7 +13,7 @@ This branch removes the old Microsoft app registration from source control. The 
 | `UPSTASH_REDIS_REST_TOKEN` | Production, Preview, Development | Upstash Redis REST token; keep it server-side |
 | `REDIS_URL` | Optional legacy fallback | Existing direct Redis URL, only if REST variables are unavailable |
 
-The token store prefers `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` when those variables are present. `REDIS_URL` is kept only as a legacy fallback; do not leave an unreachable legacy URL ahead of the working Upstash REST configuration.
+The token store prefers a working `REDIS_URL` direct connection and falls back to `UPSTASH_REDIS_REST_URL` plus `UPSTASH_REDIS_REST_TOKEN` when direct Redis is unavailable. Standard Redis and Redis Cloud are supported through either `REDIS_URL` (`redis://` or `rediss://`) or the split `REDIS_HOST`, `REDIS_PORT`, `REDIS_USERNAME`, `REDIS_PASSWORD`, and `REDIS_TLS` variables. For Upstash direct URLs, use the TLS form `rediss://...:6379`.
 
 Register `http://localhost` as a **Web** redirect URI in the new Entra app. The current OAuth flow opens Microsoft login, then accepts the complete URL returned to the localhost page.
 
