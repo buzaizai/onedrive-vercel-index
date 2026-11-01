@@ -49,21 +49,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       res.status(403).json({ error: 'The Microsoft account does not own this OneDrive.' })
       return
     }
+  } catch (error: any) {
+    const status = error?.response?.status === 401 ? 401 : 502
+    console.error('Microsoft profile validation failed:', status)
+    res.status(status).json({ error: 'Microsoft account verification failed.' })
+    return
+  }
 
-    const expiresIn = Number.parseInt(tokenResponse.expiryTime, 10)
-    if (!Number.isFinite(expiresIn) || expiresIn <= 0 || !tokenResponse.refreshToken) {
-      res.status(502).json({ error: 'Microsoft returned an incomplete token response.' })
-      return
-    }
+  const expiresIn = Number.parseInt(tokenResponse.expiryTime, 10)
+  if (!Number.isFinite(expiresIn) || expiresIn <= 0 || !tokenResponse.refreshToken) {
+    res.status(502).json({ error: 'Microsoft returned an incomplete token response.' })
+    return
+  }
 
+  try {
     await storeOdAuthTokens({
       accessToken: tokenResponse.accessToken,
       accessTokenExpiry: expiresIn,
       refreshToken: tokenResponse.refreshToken,
     })
-    res.status(200).json({ ok: true, expiresIn })
   } catch (error: any) {
-    const status = error?.response?.status === 401 ? 401 : 502
-    res.status(status).json({ error: 'Microsoft account verification failed.' })
+    console.error('OAuth token storage failed:', error instanceof Error ? error.message : 'unknown error')
+    res.status(503).json({ error: 'Token storage is unavailable. Check the Redis configuration.' })
+    return
   }
+
+  res.status(200).json({ ok: true, expiresIn })
 }

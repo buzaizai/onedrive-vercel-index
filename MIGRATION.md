@@ -9,7 +9,11 @@ This branch removes the old Microsoft app registration from source control. The 
 | `MICROSOFT_CLIENT_SECRET` | Production, Preview, Development | New client secret value |
 | `NEXT_PUBLIC_MICROSOFT_REDIRECT_URI` | Production, Preview, Development | `http://localhost` unless the OAuth flow is changed to a hosted callback |
 | `NEXT_PUBLIC_USER_PRINCIPLE_NAME` | Production, Preview, Development | Microsoft account UPN that owns the OneDrive |
-| `REDIS_URL` | Production, Preview, Development | Existing Upstash Redis URL used by the current project |
+| `UPSTASH_REDIS_REST_URL` | Production, Preview, Development | Upstash Redis REST endpoint |
+| `UPSTASH_REDIS_REST_TOKEN` | Production, Preview, Development | Upstash Redis REST token; keep it server-side |
+| `REDIS_URL` | Optional legacy fallback | Existing direct Redis URL, only if REST variables are unavailable |
+
+The token store prefers `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` when those variables are present. `REDIS_URL` is kept only as a legacy fallback; do not leave an unreachable legacy URL ahead of the working Upstash REST configuration.
 
 Register `http://localhost` as a **Web** redirect URI in the new Entra app. The current OAuth flow opens Microsoft login, then accepts the complete URL returned to the localhost page.
 

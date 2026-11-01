@@ -59,11 +59,12 @@ export default function OAuthStep3({ authCode, error, description, errorUri }) {
           router.push('/')
         }, 2000)
       })
-      .catch(_ => {
+      .catch(error => {
         setButtonError(true)
+        const message = error?.response?.data?.error
         setButtonContent(
           <div>
-            <span>{t('Error storing the token')}</span> <FontAwesomeIcon icon="exclamation-circle" />
+            <span>{message || t('Error storing the token')}</span> <FontAwesomeIcon icon="exclamation-circle" />
           </div>
         )
       })
