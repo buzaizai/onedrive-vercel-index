@@ -120,3 +120,7 @@ export async function storeOdAuthTokens({
     runCommand(['SET', tokenKey('refresh_token'), refreshToken]),
   ])
 }
+
+export async function clearOdAuthTokens(): Promise<void> {
+  await runCommand(['DEL', tokenKey('access_token'), tokenKey('refresh_token')])
+}

@@ -7,10 +7,24 @@ import apiConfig from '../../../config/api.config'
 import serverApiConfig from '../../../config/server-api.config'
 import siteConfig from '../../../config/site.config'
 import { compareHashedToken } from '../../utils/protectedRouteHandler'
-import { getOdAuthTokens, storeOdAuthTokens } from '../../utils/odAuthTokenStore'
+import { clearOdAuthTokens, getOdAuthTokens, storeOdAuthTokens } from '../../utils/odAuthTokenStore'
 import { runCorsMiddleware } from './raw'
 
 const basePath = pathPosix.resolve('/', siteConfig.baseDirectory)
+
+function isMissingSharePointLicense(error: any) {
+  const payload = error?.response?.data ?? error?.message ?? ''
+  return JSON.stringify(payload).includes('Tenant does not have a SPO license')
+}
+
+async function clearInvalidTenantTokens(res: NextApiResponse) {
+  try {
+    await clearOdAuthTokens()
+  } catch (error) {
+    console.error('Could not clear invalid Microsoft tokens:', error instanceof Error ? error.message : 'unknown error')
+  }
+  res.status(403).json({ error: 'The saved Microsoft token belongs to a tenant without SharePoint licensing. Reauthorize.' })
+}
 
 /**
  * Encode the path of the file relative to the base directory
@@ -225,18 +239,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await runCorsMiddleware(req, res)
     res.setHeader('Cache-Control', 'no-cache')
 
-    const { data } = await axios.get(requestUrl, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-      params: {
-        // OneDrive international version fails when only selecting the downloadUrl (what a stupid bug)
-        select: 'id,@microsoft.graph.downloadUrl',
-      },
-    })
+    try {
+      const { data } = await axios.get(requestUrl, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        params: {
+          // OneDrive international version fails when only selecting the downloadUrl (what a stupid bug)
+          select: 'id,@microsoft.graph.downloadUrl',
+        },
+      })
 
-    if ('@microsoft.graph.downloadUrl' in data) {
-      res.redirect(data['@microsoft.graph.downloadUrl'])
-    } else {
-      res.status(404).json({ error: 'No download url found.' })
+      if ('@microsoft.graph.downloadUrl' in data) {
+        res.redirect(data['@microsoft.graph.downloadUrl'])
+      } else {
+        res.status(404).json({ error: 'No download url found.' })
+      }
+    } catch (error: any) {
+      if (isMissingSharePointLicense(error)) {
+        await clearInvalidTenantTokens(res)
+      } else {
+        res.status(error?.response?.status ?? 500).json({ error: error?.response?.data ?? 'Internal server error.' })
+      }
     }
     return
   }
@@ -279,7 +301,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(200).json({ file: identityData })
     return
   } catch (error: any) {
-    res.status(error?.response?.code ?? 500).json({ error: error?.response?.data ?? 'Internal server error.' })
+    if (isMissingSharePointLicense(error)) {
+      await clearInvalidTenantTokens(res)
+    } else {
+      res.status(error?.response?.status ?? 500).json({ error: error?.response?.data ?? 'Internal server error.' })
+    }
     return
   }
 }
