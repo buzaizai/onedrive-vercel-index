@@ -49,6 +49,10 @@ export async function getAccessToken(): Promise<string> {
 
   // Fetch new access token with in storage refresh token
   const clientSecret = serverApiConfig.clientSecret
+  if (!clientSecret) {
+    console.error('Microsoft OAuth client secret is not configured.')
+    return ''
+  }
   const body = new URLSearchParams()
   body.append('client_id', apiConfig.clientId)
   body.append('redirect_uri', apiConfig.redirectUri)
