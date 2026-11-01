@@ -4,14 +4,13 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 import axios from 'axios'
 
 import apiConfig from '../../../config/api.config'
+import serverApiConfig from '../../../config/server-api.config'
 import siteConfig from '../../../config/site.config'
-import { revealObfuscatedToken } from '../../utils/oAuthHandler'
 import { compareHashedToken } from '../../utils/protectedRouteHandler'
 import { getOdAuthTokens, storeOdAuthTokens } from '../../utils/odAuthTokenStore'
 import { runCorsMiddleware } from './raw'
 
 const basePath = pathPosix.resolve('/', siteConfig.baseDirectory)
-const clientSecret = revealObfuscatedToken(apiConfig.obfuscatedClientSecret)
 
 /**
  * Encode the path of the file relative to the base directory
@@ -49,6 +48,11 @@ export async function getAccessToken(): Promise<string> {
   }
 
   // Fetch new access token with in storage refresh token
+  const clientSecret = serverApiConfig.clientSecret
+  if (!clientSecret) {
+    console.error('Microsoft OAuth client secret is not configured.')
+    return ''
+  }
   const body = new URLSearchParams()
   body.append('client_id', apiConfig.clientId)
   body.append('redirect_uri', apiConfig.redirectUri)
@@ -157,19 +161,8 @@ export async function checkAuthRoute(
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  // If method is POST, then the API is called by the client to store acquired tokens
-  if (req.method === 'POST') {
-    const { obfuscatedAccessToken, accessTokenExpiry, obfuscatedRefreshToken } = req.body
-    const accessToken = revealObfuscatedToken(obfuscatedAccessToken)
-    const refreshToken = revealObfuscatedToken(obfuscatedRefreshToken)
-
-    if (typeof accessToken !== 'string' || typeof refreshToken !== 'string') {
-      res.status(400).send('Invalid request body')
-      return
-    }
-
-    await storeOdAuthTokens({ accessToken, accessTokenExpiry, refreshToken })
-    res.status(200).send('OK')
+  if (req.method !== 'GET') {
+    res.status(405).json({ error: 'Method not allowed.' })
     return
   }
 

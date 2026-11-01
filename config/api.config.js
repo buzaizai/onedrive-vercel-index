@@ -9,17 +9,17 @@
  */
 module.exports = {
   // The clientId and clientSecret are used to authenticate the user with Microsoft Graph API using OAuth. You would
-  // not need to change anything here if you can authenticate with your personal Microsoft account with OneDrive International.
-  clientId: '28a1ef3a-d93d-4254-87fd-933a36ee2132',
-  obfuscatedClientSecret: 'U2FsdGVkX19D4wClExQCejMXjqAke+eoPBdn5o92XVzQJLGMh3v6ve2a0IwdT7mP2zXqqHh7wB4KmrlT+XHQZQ==',
+  // Keep the client ID public, but provide it through Vercel so the old app registration is not baked into the source.
+  clientId: process.env.NEXT_PUBLIC_MICROSOFT_CLIENT_ID || '',
+  tenantId: process.env.NEXT_PUBLIC_MICROSOFT_TENANT_ID || 'common',
 
   // The redirectUri is the URL that the user will be redirected to after they have authenticated with Microsoft Graph API.
   // Likewise, you would not need to change redirectUri if you are using your personal Microsoft account with OneDrive International.
-  redirectUri: 'http://localhost',
+  redirectUri: process.env.NEXT_PUBLIC_MICROSOFT_REDIRECT_URI || 'http://localhost',
 
   // These are the URLs of the OneDrive API endpoints. You would not need to change anything here if you are using OneDrive International
   // or E5 Subscription OneDrive for Business. You may need to change these if you are using OneDrive 世纪互联.
-  authApi: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+  authApi: `https://login.microsoftonline.com/${process.env.NEXT_PUBLIC_MICROSOFT_TENANT_ID || 'common'}/oauth2/v2.0/token`,
   driveApi: 'https://graph.microsoft.com/v1.0/me/drive',
 
   // The scope we require are listed here, in most cases you would not need to change this as well.
